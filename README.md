@@ -2,6 +2,8 @@
 
 This new widget is made to replace a similar widget created in the past by Alon Noy. That widget however used the not official speedtest-cli that is no longer supported. The no longer supported version of speedtest-cli has a limitation that it can only list and connect 10 geographic chosen test servers which are in most cases never the best server for your tests. And also the test results are not the best when compared with the original speedtest-cli from speedtest.net.
 
+![Screenshot](https://github.com/LeonStraathof/pfsense-speedtest-widget/blob/main/Widget-screenshot.png?raw=true)
+
 ## INSTALL
 
 Goto https://www.speedtest.net/apps/cli
