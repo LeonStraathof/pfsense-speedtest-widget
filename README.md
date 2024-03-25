@@ -10,6 +10,7 @@ Goto https://www.speedtest.net/apps/cli
 Click FreeBSD and find URL of newest version.
 pfSense-main-menu-->Diagnotics-->Command Prompt-->Execute Shell Command:
 (Use the URL found on the speedtest.net website and the FreeBSD version number in env ABI must match the version number in the URL)
+There is a know conflict between the not offical speedtest-cli and the offical version from speedtest.net. You can not have both installed at the same time. See this reported issue: https://github.com/LeonStraathof/pfsense-speedtest-widget/issues/2
 ```	
 env ABI=FreeBSD:13:x86:64 pkg add "https://install.speedtest.net/app/cli/ookla-speedtest-1.2.0-freebsd13-x86_64.pkg"
 ```
