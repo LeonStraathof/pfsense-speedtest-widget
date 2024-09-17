@@ -64,8 +64,18 @@ Diagnotics-->Command Prompt-->Execute Shell Command:
 
 require_once("guiconfig.inc");
 
-if ($_REQUEST['ajax']) { 
-    $results = shell_exec("speedtest -f json --accept-license --accept-gdpr");
+if (is_numeric($_REQUEST['ajax'])) { 
+	if ($_REQUEST['ajax']==0){
+		$results = shell_exec("speedtest -f json --selection-details --accept-license --accept-gdpr");
+	} else {
+		$serverlist = shell_exec("speedtest -f json --servers --accept-license --accept-gdpr");
+		$results = shell_exec("speedtest -f json --server-id=" . $_REQUEST['ajax'] . " --selection-details --accept-license --accept-gdpr");
+		$resultsobj = json_decode($results,true);
+		$serverlistobj = json_decode($serverlist,true);
+		$resultsobj['serverSelection']['servers'] = $serverlistobj['servers'];
+		$results = json_encode($resultsobj);
+	}
+    
     if(($results !== null) && (json_decode($results) !== null)) {
         $config['widgets']['speedtest_result'] = $results;
         write_config("Save speedtest results");
@@ -96,7 +106,12 @@ if ($_REQUEST['ajax']) {
 	</tr>
 	<tr>
 		<td>Host</td>
-		<td colspan="2" id="speedtest-host">N/A</td>
+		<!--<td colspan="2" id="speedtest-host">N/A</td>-->
+		<td colspan="2">
+			<select name="speedtest-host" id="speedtest-host" style="width: 100%">
+				<option value=0>AUTOSELECT</option>
+			</select>	
+		</td>
 	</tr>
 	<tr>
 		<td colspan="3" id="speedtest-ts" style="font-size: 0.8em;">&nbsp;</td>
@@ -113,7 +128,44 @@ function update_result(results) {
     	$("#speedtest-download").html((results.download.bandwidth / 1000000 * 8).toFixed(2) + "<small> Mbps </small><h5>(" + results.download.latency.iqm + "<small> ms</small>)</h5>");
     	$("#speedtest-upload").html((results.upload.bandwidth / 1000000 * 8).toFixed(2) + "<small> Mbps </small><h5>(" + results.upload.latency.iqm + "<small> ms</small>)</h5>");
     	$("#speedtest-isp").html(results.isp + "<small> (" + results.interface.externalIp + ")</small>");
-    	$("#speedtest-host").html(results.server.name + " " + results.server.location + " " + results.server.country + "<small> (" + results.server.ip + ")</small>");
+		$('#speedtest-host')
+			.find('option')
+			.remove()
+			.end()
+			.append($('<option>', {
+    			value: results.server.id,
+    			text: results.server.name + " " + results.server.location + " " + results.server.country + " (id=" + results.server.id + ")"
+			}))
+			.val(results.server.id)
+			.append($('<option>', {
+    			value: 0,
+    			text: 'AUTOSELECT'
+			}))
+		;
+		var servers = results.serverSelection.servers;
+		servers.sort(function(a, b){
+			if (typeof a.latency === "undefined" || typeof b.latency === "undefined") return 0;
+    		var a1= a.latency, b1= b.latency;
+    		if(a1== b1) return 0;
+    		return a1> b1? 1: -1;
+		});
+		$.each(servers, function (i, server) {
+			if (typeof server.server !== "undefined") {
+				if(results.server.id !== server.server.id){
+					$('#speedtest-host').append($('<option>', { 
+						value: server.server.id,
+						text : server.server.name + " " + server.server.location + " " + server.server.country + " (id=" + server.server.id + ")" 
+					}));
+				}
+			} else {
+				if(results.server.id !== server.id){
+					$('#speedtest-host').append($('<option>', { 
+						value: server.id,
+						text : server.name + " " + server.location + " " + server.country + " (id=" + server.id + ")" 
+					}));
+				}
+			}
+		});
 		$("#Ookla").attr("href", results.result.url);
 		$("#Ookla").show();
     } else {
@@ -123,7 +175,17 @@ function update_result(results) {
     	$("#speedtest-upload").html("N/A");
     	$("#speedtest-upload").html("N/A");
     	$("#speedtest-isp").html("N/A");
-    	$("#speedtest-host").html("N/A");
+    	//$("#speedtest-host").html("N/A");
+		$('#speedtest-host')
+			.find('option')
+			.remove()
+			.end()
+			.append($('<option>', {
+    			value: 0,
+    			text: 'AUTOSELECT'
+			}))
+			.val(0)
+		;
     }
 }
 
@@ -137,7 +199,7 @@ function update_speedtest() {
         url: "/widgets/widgets/speedtest.widget.php",
         dataType: 'json',
         data: {
-            ajax: "ajax"
+            ajax: $( "#speedtest-host option:selected" ).val()
         },
         success: function(data) {
             update_result(data);
