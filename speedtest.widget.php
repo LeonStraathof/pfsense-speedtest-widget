@@ -64,15 +64,27 @@ Diagnotics-->Command Prompt-->Execute Shell Command:
 
 require_once("guiconfig.inc");
 
-if (is_numeric($_REQUEST['ajax'])) { 
-	if ($_REQUEST['ajax']==0){
+if (is_numeric($_REQUEST['serverid'])) { 
+	if ($_REQUEST['serverid']==0){
+		//AUTOSELECT
 		$results = shell_exec("speedtest -f json --selection-details --accept-license --accept-gdpr");
 	} else {
+		//MANUAL SERVER SELECTION
 		$serverlist = shell_exec("speedtest -f json --servers --accept-license --accept-gdpr");
-		$results = shell_exec("speedtest -f json --server-id=" . $_REQUEST['ajax'] . " --selection-details --accept-license --accept-gdpr");
+		$results = shell_exec("speedtest -f json --server-id=" . $_REQUEST['serverid'] . " --selection-details --accept-license --accept-gdpr");
 		$resultsobj = json_decode($results,true);
 		$serverlistobj = json_decode($serverlist,true);
+		foreach ($serverlistobj['servers'] as &$server) {
+			$latency = shell_exec("ping -c 1 -W 1 " . $server['host'] . " 2>&1 | awk -F'/' 'END{ print (/^round-trip/? $5:\"99999\") }'");
+			$server = (object) array('latency' => (float)$latency,"server" => $server);
+		}
 		$resultsobj['serverSelection']['servers'] = $serverlistobj['servers'];
+		/*
+		$previousresults = isset($config['widgets']['speedtest_result']) ? json_decode($config['widgets']['speedtest_result'],true) : null;
+		if(isset($previousresults['serverSelection']['servers'])){
+			$resultsobj['serverSelection']['servers'] = $previousresults['serverSelection']['servers'];
+		}
+		*/
 		$results = json_encode($resultsobj);
 	}
     
@@ -101,6 +113,10 @@ if (is_numeric($_REQUEST['ajax'])) {
 		<td><h4 id="speedtest-upload">N/A</h4></td>
 	</tr>
 	<tr>
+		<td>Packetloss</td>
+		<td colspan="2" id="speedtest-packetloss">N/A</td>
+	</tr>
+	<tr>
 		<td>ISP</td>
 		<td colspan="2" id="speedtest-isp">N/A</td>
 	</tr>
@@ -109,7 +125,7 @@ if (is_numeric($_REQUEST['ajax'])) {
 		<!--<td colspan="2" id="speedtest-host">N/A</td>-->
 		<td colspan="2">
 			<select name="speedtest-host" id="speedtest-host" style="width: 100%">
-				<option value=0>AUTOSELECT</option>
+				<option value=0>AUTOSELECT AND REFRESH CLOSEST SERVER LIST</option>
 			</select>	
 		</td>
 	</tr>
@@ -127,22 +143,24 @@ function update_result(results) {
     	$("#speedtest-ping").html(results.ping.latency.toFixed(2) + "<small> ms</small>");
     	$("#speedtest-download").html((results.download.bandwidth / 1000000 * 8).toFixed(2) + "<small> Mbps </small><h5>(" + results.download.latency.iqm + "<small> ms</small>)</h5>");
     	$("#speedtest-upload").html((results.upload.bandwidth / 1000000 * 8).toFixed(2) + "<small> Mbps </small><h5>(" + results.upload.latency.iqm + "<small> ms</small>)</h5>");
-    	$("#speedtest-isp").html(results.isp + "<small> (" + results.interface.externalIp + ")</small>");
+    	$("#speedtest-packetloss").html(results.packetLoss);
+		$("#speedtest-isp").html(results.isp + "<small> (" + results.interface.externalIp + ")</small>");
 		$('#speedtest-host')
 			.find('option')
 			.remove()
 			.end()
 			.append($('<option>', {
     			value: results.server.id,
-    			text: results.server.name + " " + results.server.location + " " + results.server.country + " (id=" + results.server.id + ")"
+    			text: results.server.name + " " + results.server.location + " " + results.server.country + " id=" + results.server.id + " (" + results.ping.latency.toFixed(2) + "ms)"
 			}))
 			.val(results.server.id)
 			.append($('<option>', {
     			value: 0,
-    			text: 'AUTOSELECT'
+    			text: 'AUTOSELECT AND REFRESH CLOSEST SERVER LIST'
 			}))
 		;
 		var servers = results.serverSelection.servers;
+		//alert(JSON.stringify(servers, null, '\t'));
 		servers.sort(function(a, b){
 			if (typeof a.latency === "undefined" || typeof b.latency === "undefined") return 0;
     		var a1= a.latency, b1= b.latency;
@@ -150,20 +168,12 @@ function update_result(results) {
     		return a1> b1? 1: -1;
 		});
 		$.each(servers, function (i, server) {
-			if (typeof server.server !== "undefined") {
-				if(results.server.id !== server.server.id){
-					$('#speedtest-host').append($('<option>', { 
-						value: server.server.id,
-						text : server.server.name + " " + server.server.location + " " + server.server.country + " (id=" + server.server.id + ")" 
-					}));
-				}
-			} else {
-				if(results.server.id !== server.id){
-					$('#speedtest-host').append($('<option>', { 
-						value: server.id,
-						text : server.name + " " + server.location + " " + server.country + " (id=" + server.id + ")" 
-					}));
-				}
+			if(results.server.id !== server.server.id){
+				if(server.latency===99999){var latency="Request timed out"}else{var latency=server.latency.toFixed(2) + "ms"}
+				$('#speedtest-host').append($('<option>', { 
+					value: server.server.id,
+					text : server.server.name + " " + server.server.location + " " + server.server.country + " id=" + server.server.id + " (" + latency + ")"
+				}));
 			}
 		});
 		$("#Ookla").attr("href", results.result.url);
@@ -174,6 +184,7 @@ function update_result(results) {
     	$("#speedtest-download").html("N/A");
     	$("#speedtest-upload").html("N/A");
     	$("#speedtest-upload").html("N/A");
+		$("#speedtest-packetloss").html("N/A");
     	$("#speedtest-isp").html("N/A");
     	//$("#speedtest-host").html("N/A");
 		$('#speedtest-host')
@@ -182,7 +193,7 @@ function update_result(results) {
 			.end()
 			.append($('<option>', {
     			value: 0,
-    			text: 'AUTOSELECT'
+    			text: 'AUTOSELECT AND REFRESH CLOSEST SERVER LIST'
 			}))
 			.val(0)
 		;
@@ -199,7 +210,7 @@ function update_speedtest() {
         url: "/widgets/widgets/speedtest.widget.php",
         dataType: 'json',
         data: {
-            ajax: $( "#speedtest-host option:selected" ).val()
+            serverid: $( "#speedtest-host option:selected" ).val()
         },
         success: function(data) {
             update_result(data);
