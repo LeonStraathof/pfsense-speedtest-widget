@@ -140,11 +140,22 @@ function update_result(results) {
     if(results != null) {
     	var date = new Date(results.timestamp);
     	$("#speedtest-ts").html(date);
-    	$("#speedtest-ping").html(results.ping.latency.toFixed(2) + "<small> ms</small>");
-    	$("#speedtest-download").html((results.download.bandwidth / 1000000 * 8).toFixed(2) + "<small> Mbps </small><h5>(" + results.download.latency.iqm + "<small> ms</small>)</h5>");
-    	$("#speedtest-upload").html((results.upload.bandwidth / 1000000 * 8).toFixed(2) + "<small> Mbps </small><h5>(" + results.upload.latency.iqm + "<small> ms</small>)</h5>");
-    	$("#speedtest-packetloss").html(results.packetLoss);
-		$("#speedtest-isp").html(results.isp + "<small> (" + results.interface.externalIp + ")</small>");
+    	$("#speedtest-ping").html(results.ping === undefined ? "Undefined" : results.ping.latency.toFixed(2) + "<small> ms</small>");
+    	$("#speedtest-download").html(results.download === undefined ? "Undefined" : (results.download.bandwidth / 1000000 * 8).toFixed(2) + "<small> Mbps </small><h5>(" + results.download.latency.iqm + "<small> ms</small>)</h5>");
+    	$("#speedtest-upload").html(results.upload === undefined ? "Undefined" : (results.upload.bandwidth / 1000000 * 8).toFixed(2) + "<small> Mbps </small><h5>(" + results.upload.latency.iqm + "<small> ms</small>)</h5>");
+    	$("#speedtest-packetloss").html(results.packetLoss === undefined ? "Undefined" : results.packetLoss);
+	$("#speedtest-isp").html(results.isp === undefined ? "Undefined" : results.isp + "<small> (" + results.interface.externalIp + ")</small>");
+	if (results.server === undefined) {
+		$('#speedtest-host')
+			.find('option')
+			.remove()
+			.end()
+			.append($('<option>', {
+    			value: 0,
+    			text: 'AUTOSELECT AND REFRESH CLOSEST SERVER LIST'
+			}))
+		;
+	} else {
 		$('#speedtest-host')
 			.find('option')
 			.remove()
@@ -159,13 +170,14 @@ function update_result(results) {
     			text: 'AUTOSELECT AND REFRESH CLOSEST SERVER LIST'
 			}))
 		;
+		//alert(results.serverSelection);
 		var servers = results.serverSelection.servers;
 		//alert(JSON.stringify(servers, null, '\t'));
 		servers.sort(function(a, b){
 			if (typeof a.latency === "undefined" || typeof b.latency === "undefined") return 0;
-    		var a1= a.latency, b1= b.latency;
-    		if(a1== b1) return 0;
-    		return a1> b1? 1: -1;
+    			var a1= a.latency, b1= b.latency;
+    			if(a1== b1) return 0;
+    			return a1> b1? 1: -1;
 		});
 		$.each(servers, function (i, server) {
 			if(results.server.id !== server.server.id){
@@ -176,8 +188,9 @@ function update_result(results) {
 				}));
 			}
 		});
-		$("#Ookla").attr("href", results.result.url);
-		$("#Ookla").show();
+	}
+	$("#Ookla").attr("href", results.result === undefined ? "" : results.result.url);
+	$("#Ookla").show();
     } else {
     	$("#speedtest-ts").html("Speedtest failed");
     	$("#speedtest-ping").html("N/A");
