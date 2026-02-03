@@ -64,14 +64,20 @@ Diagnotics-->Command Prompt-->Execute Shell Command:
 
 require_once("guiconfig.inc");
 
-if (is_numeric($_REQUEST['serverid'])) { 
+if (is_numeric($_REQUEST['serverid'])) {
+	
+	// COMPOSE INTERFACE SELECTION SWITCH (IF SPECIFIED BY THE USER)
+	$ifaceipswitch = "";
+	if ($_REQUEST['iface'] !== "0.0.0.0")
+		$ifaceipswitch = " --ip=" . $_REQUEST['iface'];
+
 	if ($_REQUEST['serverid']==0){
 		//AUTOSELECT
-		$results = shell_exec("speedtest -f json --selection-details --accept-license --accept-gdpr");
+		$results = shell_exec("speedtest -f json --selection-details --accept-license --accept-gdpr" . $ifaceipswitch);
 	} else {
 		//MANUAL SERVER SELECTION
-		$serverlist = shell_exec("speedtest -f json --servers --accept-license --accept-gdpr");
-		$results = shell_exec("speedtest -f json --server-id=" . $_REQUEST['serverid'] . " --selection-details --accept-license --accept-gdpr");
+		$serverlist = shell_exec("speedtest -f json --servers --accept-license --accept-gdpr" . $ifaceipswitch);
+		$results = shell_exec("speedtest -f json --server-id=" . $_REQUEST['serverid'] . $ifaceipswitch . " --selection-details --accept-license --accept-gdpr");
 		$resultsobj = json_decode($results,true);
 		$serverlistobj = json_decode($serverlist,true);
 		foreach ($serverlistobj['servers'] as &$server) {
@@ -119,6 +125,23 @@ if (is_numeric($_REQUEST['serverid'])) {
 	<tr>
 		<td>ISP</td>
 		<td colspan="2" id="speedtest-isp">N/A</td>
+	</tr>
+	<tr>
+		<td>Interface</td>
+		<td colspan="2">
+			<select name="speedtest-iface" id="speedtest-iface" style="width: 100%">
+				<option value="0.0.0.0">Auto</option>
+<?
+				//build interface list for widget use
+				$ifdescrs = get_configured_interface_with_descr();
+
+    				foreach ($ifdescrs as $ifdescr => $ifname) {
+					$ifinfo = get_interface_info($ifdescr);
+					echo('<option value="' . htmlspecialchars($ifinfo['ipaddr']) . '">' . $ifname . ' (' . htmlspecialchars($ifinfo['ipaddr']) . ')</option>');
+				}
+?>
+			</select>
+		</td>
 	</tr>
 	<tr>
 		<td>Host</td>
@@ -223,7 +246,8 @@ function update_speedtest() {
         url: "/widgets/widgets/speedtest.widget.php",
         dataType: 'json',
         data: {
-            serverid: $( "#speedtest-host option:selected" ).val()
+            serverid: $( "#speedtest-host option:selected" ).val(),
+            iface: $( "#speedtest-iface option:selected" ).val()
         },
         success: function(data) {
             update_result(data);
